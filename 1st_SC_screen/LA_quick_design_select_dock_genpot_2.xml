@@ -1,0 +1,338 @@
+<ROSETTASCRIPTS>
+	/211029 by LA. For quick design of AF2 docks
+	<SCOREFXNS>
+	<ScoreFunction name="sfxn_soft" weights="beta_nov16_soft" />
+        <ScoreFunction name="sfxn_design" weights="beta" > #change from beta_nove16 to genpot
+            # lk_ball is slooooooooooow
+            <Reweight scoretype="lk_ball" weight="0" />
+            <Reweight scoretype="lk_ball_iso" weight="0" />
+            <Reweight scoretype="lk_ball_bridge" weight="0" />
+            <Reweight scoretype="lk_ball_bridge_uncpl" weight="0" />
+
+            # turn off the next slowest parts of the score function
+            Set etable_no_hydrogens="true" /> has to use /mnt/home/nrbennet/rosetta_builds/master_branch/main/source/cmake/build_release_omp_hdf5/rosetta_scripts, no longer consider hydrogen during calculation
+            <Reweight scoretype="fa_elec" weight="0" />
+            <Reweight scoretype="fa_intra_atr_xover4" weight="0" />
+            <Reweight scoretype="fa_intra_rep_xover4" weight="0" />
+            <Reweight scoretype="fa_intra_sol_xover4" weight="0" />
+            <Reweight scoretype="fa_intra_elec" weight="0" />
+        </ScoreFunction>
+	<ScoreFunction name="hard_symm" weights="beta_nov16_cst" symmetric="0">
+            <Reweight scoretype="coordinate_constraint" weight="0.5" />
+            <Reweight scoretype="aa_composition" weight="1.0" />
+            <Reweight scoretype="res_type_constraint" weight="1.0" /> // to use fragment PSSM
+            <Reweight scoretype="angle_constraint" weight="3" />
+            <Reweight scoretype="dihedral_constraint" weight="3" />
+            <Reweight scoretype="atom_pair_constraint" weight="3" />
+            <Reweight scoretype="approximate_buried_unsat_penalty" weight="5.0" />
+            <!-- <Set approximate_buried_unsat_penalty_hbond_energy_threshold="-0.25" /> -->
+            <Set approximate_buried_unsat_penalty_burial_atomic_depth="4.0" />
+            # Set this to false if you don't know where you might want prolines
+            <Set approximate_buried_unsat_penalty_assume_const_backbone="true" />
+            # LA added to penalize buried unsats
+            <Set approximate_buried_unsat_penalty_natural_corrections1="true" />
+            <Set approximate_buried_unsat_penalty_hbond_energy_threshold="-1.0" />
+            <Set approximate_buried_unsat_penalty_hbond_bonus_cross_chain="-2.5" />
+            <Set approximate_buried_unsat_penalty_hbond_bonus_ser_to_helix_bb="0.0" />
+        </ScoreFunction>
+	<ScoreFunction name="sfxn_SANDBAG" weights="empty"  symmetric="0" >
+            <Reweight scoretype="res_type_constraint" weight="1.0" />
+        </ScoreFunction>
+	<ScoreFunction name="sfn_motif" weights="empty" symmetric="1">
+            <Reweight scoretype="cen_pair_motifs" weight="1"/>
+        </ScoreFunction>
+	<ScoreFunction name="sfn_motif_degree" weights="empty" symmetric="1">
+            <Reweight scoretype="cen_pair_motif_degree" weight="1"/>
+        </ScoreFunction>
+	<ScoreFunction name="sfxn" weights="beta" >  #change from beta_nov to genpot
+        </ScoreFunction>
+        <ScoreFunction name="sfxn_softish" weights="beta" > #change from beta_nov to genpot
+            <Reweight scoretype="fa_rep" weight="0.15" />
+        </ScoreFunction>
+        <ScoreFunction name="sfxn_fa_atr" weights="empty" >
+            <Reweight scoretype="fa_atr" weight="1" />
+        </ScoreFunction>
+        <ScoreFunction name="vdw_sol" weights="empty" >
+            <Reweight scoretype="fa_atr" weight="1.0" />
+            <Reweight scoretype="fa_rep" weight="0.55" />
+            <Reweight scoretype="fa_sol" weight="1.0" />
+        </ScoreFunction>
+	</SCOREFXNS>
+
+	<RESIDUE_SELECTORS>
+	<Chain name="chainA" chains="A"/>
+        <Chain name="chainB" chains="B"/>
+        InterfaceByVector name="interface_by_vector" cb_dist_cut="11" nearby_atom_cut="5.5" vector_angle_cut="75" vector_dist_cut="9" grp1_selector="chainA" grp2_selector="chainB"/>
+        Not name="not_interface" selector="interface_by_vector"/>
+        And name="interface_and_ligand" selectors="interface_by_vector,chainB"/>
+
+        <ResidueName name="apolar" residue_name3="ALA,CYS,PHE,ILE,LEU,MET,THR,PRO,VAL,TRP,TYR" />
+        <Not name="polar" selector="apolar" />
+        <ResidueName name="select_AVLI" residue_names="ALA,VAL,LEU,ILE" />
+        <Not name="not_AVLI" selector="select_AVLI" />
+        <ResidueName name="select_PG" residue_names="PRO,GLY" />
+
+        <Index name="ligand" resnums="%%ligand_res_number%%"/>
+        <ResiduePDBInfoHasLabel name="all_rifres_res" property="RIFRES"/>
+        <And name="rifres_res" selectors="all_rifres_res,not_AVLI" />
+        Index name="pocket" resnums="%%pocket%%"/>
+	    <CloseContact name="interface_by_contact" residue_selector="ligand" contact_threshold="4"/>
+	    <CloseContact name="ligand_neighbour" residue_selector="ligand" contact_threshold="8"/>
+        <And name="interface" selectors="interface_by_contact"/> /only consider actual core and interface residues; remove pocket
+        <Not name="not_interface" selector="interface"/>
+        <And name="interface_and_ligand" selectors="interface,chainB"/>
+
+        / Layer Design
+        <Layer name="surface" select_core="false" select_boundary="false" select_surface="true" use_sidechain_neighbors="true"/>
+        <Layer name="boundary" select_core="false" select_boundary="true" select_surface="false" use_sidechain_neighbors="true"/>
+        <Layer name="core" select_core="true" select_boundary="false" select_surface="false" use_sidechain_neighbors="true"/>
+        <SecondaryStructure name="sheet" overlap="0" minH="3" minE="2" include_terminal_loops="false" use_dssp="true" ss="E"/>
+        <SecondaryStructure name="entire_loop" overlap="0" minH="3" minE="2" include_terminal_loops="true" use_dssp="true" ss="L"/>
+        <SecondaryStructure name="entire_helix" overlap="0" minH="3" minE="2" include_terminal_loops="false" use_dssp="true" ss="H"/>
+        <And name="helix_cap" selectors="entire_loop">
+            <PrimarySequenceNeighborhood lower="1" upper="0" selector="entire_helix"/>
+        </And>
+        <And name="helix_start" selectors="entire_helix">
+            <PrimarySequenceNeighborhood lower="0" upper="1" selector="helix_cap"/>
+        </And>
+        <And name="helix" selectors="entire_helix">
+            <Not selector="helix_start"/>
+        </And>
+        <And name="loop" selectors="entire_loop">
+            <Not selector="helix_cap"/>
+        </And>
+
+	</RESIDUE_SELECTORS>
+
+	<TASKOPERATIONS>        
+        <!-- <DesignRestrictions name="layer_design_no_core_polars">
+            <Action selector_logic="surface AND helix_start"  aas="DEHKPQR"/>
+            <Action selector_logic="surface AND helix"        aas="EHKQR"/>
+            <Action selector_logic="surface AND sheet"        aas="EHKNQRST"/>
+            <Action selector_logic="surface AND loop"         aas="DEGHKNPQRST"/>
+            <Action selector_logic="boundary AND helix_start" aas="ADEHIKLNPQRSTVWY"/>
+            <Action selector_logic="boundary AND helix"       aas="ADEHIKLNQRSTVWY"/>
+            <Action selector_logic="boundary AND sheet"       aas="DEFHIKLNQRSTVWY"/>
+            <Action selector_logic="boundary AND loop"        aas="ADEFGHIKLNPQRSTVWY"/>
+            <Action selector_logic="core AND helix_start"     aas="AFILMPVWY"/>
+            <Action selector_logic="core AND helix"           aas="AFILVWY"/>
+            <Action selector_logic="core AND sheet"           aas="FILVWY"/>
+            <Action selector_logic="core AND loop"            aas="AFGILPVWY"/>
+            <Action selector_logic="helix_cap"                aas="DNST"/>
+        </DesignRestrictions> -->
+
+        / General TO
+        <ProteinProteinInterfaceUpweighter name="upweight_interface" interface_weight="3" />
+        <ProteinInterfaceDesign name="pack_long" design_chain1="0" design_chain2="0" jump="1" interface_distance_cutoff="15"/>
+        <InitializeFromCommandline name="init" />
+        <LimitAromaChi2 name="limitchi2" chi2max="110" chi2min="70" include_trp="True" />
+        <ExtraRotamersGeneric name="ex1_ex2aro" ex1="1" ex2aro="1" />
+        <IncludeCurrent name="ic"/>
+        <RestrictAbsentCanonicalAAS name="noCys" keep_aas="ADEFGHIKLMNPQRSTVWY"/>
+        <OperateOnResidueSubset name="restrict_to_interface" selector="not_interface"><PreventRepackingRLT/></OperateOnResidueSubset>
+        <OperateOnResidueSubset name="restrict_target2repacking" selector="ligand"><PreventRepackingRLT/></OperateOnResidueSubset> #change from RestrictToRepackingRLT to PreventRepackingRLT
+        <OperateOnResidueSubset name="restrict_rifres2repacking" selector="rifres_res"><PreventRepackingRLT/></OperateOnResidueSubset> #change from RestrictToRepackingRLT to PreventRepackingRLT
+        <DisallowIfNonnative name="disallow_GLY" resnum="0" disallow_aas="G" />
+        <DisallowIfNonnative name="disallow_PRO" resnum="0" disallow_aas="P" />
+        SelectBySASA name="PR_monomer_core" mode="sc" state="monomer" probe_radius="2.2" core_asa="10" surface_asa="10" core="0" boundary="1" surface="1" verbose="0" /
+    </TASKOPERATIONS>
+    <MOVERS>
+        <AddConstraintsToCurrentConformationMover name="add_bb_cst" use_distance_cst="False" cst_weight="1" bb_only="1" sc_tip_only="0" />
+        <ClearConstraintsMover name="rm_bb_cst" />
+        <PackRotamersMover name="hard_pack" scorefxn="sfxn_design"  task_operations="ex1_ex2aro,ic,limitchi2,noCys,restrict_to_interface,upweight_interface,restrict_target2repacking,restrict_rifres2repacking,disallow_GLY,disallow_PRO"/> remove PR_monomer_core 
+        <DumpPdb name="dump_pdb1" fname="after_hardpack.pdb" tag_time="true" scorefxn="sfxn" />
+        <TaskAwareMinMover name="softish_min" scorefxn="sfxn_softish" chi="1" bb="1" jump="1" tolerance="0.01" cartesian="false" task_operations="restrict_target2repacking,restrict_to_interface" />
+        <DumpPdb name="dump_pdb2" fname="after_softmin.pdb" tag_time="true" scorefxn="sfxn" />
+        <TaskAwareMinMover name="hard_min" scorefxn="sfxn" chi="1" bb="1" jump="1" tolerance="0.01" cartesian="false" task_operations="restrict_target2repacking,restrict_to_interface" /> 
+        <DumpPdb name="dump_pdb3" fname="after_hardmin.pdb" tag_time="true" scorefxn="sfxn" />
+
+    </MOVERS>
+
+    <MOVERS>
+        <SwitchChainOrder name="chain1onlypre" chain_order="1" />
+        <ScoreMover name="scorepose" scorefxn="sfxn" verbose="false" />
+        <ParsedProtocol name="chain1only">
+            <Add mover="chain1onlypre" />
+            <Add mover="scorepose" />
+        </ParsedProtocol>
+        <TaskAwareMinMover name="min" scorefxn="sfxn" bb="0" chi="1" task_operations="pack_long" />
+        <DeleteRegionMover name="delete_polar" residue_selector="polar" rechain="false" />
+        StructProfileMover name="genProfile" outputProfile="false" add_csts_to_pose="true" consider_topN_frags="1000" eliminate_background="false" ignore_terminal_residue="true" only_loops="false" burialWt="0.8" RMSthreshold="0.6" />
+    </MOVERS>
+	
+    <FILTERS>
+        <DSasa name="dsasa" lower_threshold="0" upper_threshold="1"/>
+        <Sasa name="interface_buried_sasa" confidence="0" />
+        <Ddg name="ddg_norepack"  threshold="0" jump="1" repeats="1" repack="0" relax_mover="min" confidence="0" scorefxn="sfxn" />
+        <ShapeComplementarity name="interface_sc" verbose="0" min_sc="0.55" write_int_area="1" write_median_dist="1" jump="1" confidence="0"/>
+        <Time name="timed"/>
+        <ScoreType name="total_score_MBF" scorefxn="sfxn" score_type="total_score" threshold="0" confidence="0" />
+        <MoveBeforeFilter name="total_score_monomer" mover="chain1only" filter="total_score_MBF" confidence="0" /> 
+	<ResidueCount name="res_count_MBF" max_residue_count="9999" confidence="0"/>
+        <ResidueCount name="res_count_core_SCN" residue_selector="core" max_residue_count="9999" confidence="0"/>       
+	### score function monomer terms
+        <MoveBeforeFilter name="res_count_monomer" mover="chain1only" filter="res_count_MBF" confidence="0" />
+	<CalculatorFilter name="score_per_res" equation="total_score_monomer / res" threshold="-3.5" confidence="0">
+            <Var name="total_score_monomer" filter="total_score_monomer"/>
+            <Var name="res" filter="res_count_monomer"/>
+        </CalculatorFilter>
+        <InterfaceHydrophobicResidueContacts name="hydrophobic_residue_contacts" target_selector="chainB" binder_selector="chainA" scorefxn="sfxn_soft" confidence="0"/>
+        <Ddg name="ddg_hydrophobic_pre"  threshold="-10" jump="1" repeats="1" repack="0" confidence="0" scorefxn="vdw_sol" />
+        <MoveBeforeFilter name="ddg_hydrophobic" mover="delete_polar" filter="ddg_hydrophobic_pre" confidence="0"/>
+        SSPrediction name="pre_mismatch_probability" confidence="0" cmd="/software/psipred4/runpsipred_single" use_probability="1" mismatch_probability="1" use_svm="0" use_scratch_dir="1" />
+        MoveBeforeFilter name="mismatch_probability" mover="chain1only" filter="pre_mismatch_probability" confidence="0" />
+	<ContactMolecularSurface name="contact_molecular_surface" distance_weight="0.5" target_selector="chainA" binder_selector="chainB" confidence="0" use_rosetta_radii="1"/>
+	<ContactMolecularSurface name="contact_apor_molecular_surface" distance_weight="0.5" target_selector="ligand" binder_selector="apolar" confidence="0" use_rosetta_radii="1"/>
+	<!-- <LongestContinuousApolarSegment name="longest_hpc" exclude_chain_termini="false" filter_out_high="true" cutoff="7" confidence="0" />
+	<PreProline name="prepro" use_statistical_potential="0" confidence="0"/>	
+	<TaskAwareScoreType name="buried_unsat_score" scorefxn="hard_symm" score_type="approximate_buried_unsat_penalty" threshold="0" mode="total"  confidence="0" />
+	<ResidueCount name="nMET" count_as_percentage="1" max_residue_count="300" min_residue_count="0" residue_types="MET" confidence="0" />
+        <ResidueCount name="nALA" count_as_percentage="1" max_residue_count="300" min_residue_count="0" residue_types="ALA" confidence="0" />
+        <ResidueCount name="nARG" count_as_percentage="1" max_residue_count="300" min_residue_count="0" residue_types="ARG" confidence="0" />
+        <ResidueCount name="nHIS" count_as_percentage="1" max_residue_count="300" min_residue_count="0" residue_types="HIS" confidence="0" />
+        <ResidueCount name="ala_loop_count" max_residue_count="300" residue_types="ALA" count_as_percentage="1" residue_selector="loop" confidence="0"/>
+        <ResidueCount name="ala_core_count" max_residue_count="300" residue_types="ALA" count_as_percentage="1" residue_selector="core" confidence="0"/>
+	<ResidueCount name="ala_bdry_count" max_residue_count="300" residue_types="ALA" count_as_percentage="1" residue_selector="boundary" confidence="0"/>
+	<ResidueCount name="res_count_all" max_residue_count="9999" confidence="0"/>
+        <ScoreType name="p_aa_pp_MBF" scorefxn="sfxn" score_type="p_aa_pp" threshold="0" confidence="0" />
+        <MoveBeforeFilter name="p_aa_pp_monomer" mover="chain1only" filter="p_aa_pp_MBF" confidence="0" />
+
+        <ResidueCount name="nres_H" count_as_percentage="False" confidence="0" residue_selector="entire_helix" />
+        <ResidueCount name="nres_E" count_as_percentage="False" confidence="0" residue_selector="sheet" />
+        <ResidueCount name="nres_L" count_as_percentage="False" confidence="0" residue_selector="entire_loop" />
+	<ResidueCount name="nres_all"/>
+	<ScoreType name="motif_score_monomer" scorefxn="sfn_motif" score_type="cen_pair_motifs" threshold="0" confidence="0"/>
+        <ScoreType name="motif_degree_score_monomer" scorefxn="sfn_motif_degree" score_type="cen_pair_motif_degree" threshold="0" confidence="0"/>
+        <CalculatorFilter name="motif_score_monomer_per_res" equation="A/B" threshold="-0.035" confidence="0">
+            <Var name="A" filter_name="motif_score_monomer" />
+            <Var name="B" filter_name="nres_all" />
+        </CalculatorFilter>
+        <CalculatorFilter name="motif_degree_score_monomer_per_res" equation="A/B" threshold="-0.005" confidence="0">
+            <Var name="A" filter_name="motif_degree_score_monomer" />
+            <Var name="B" filter_name="nres_all" />
+    </CalculatorFilter>
+	<CalculatorFilter name="p_aa_pp_per_res" equation="p_aa_pp_monomer / res" threshold="-3.5" confidence="0">
+            <Var name="p_aa_pp_monomer" filter="p_aa_pp_monomer"/>
+            <Var name="res" filter="res_count_monomer"/>
+        </CalculatorFilter>
+
+        <ScoreType name="hb_lr_bb" scorefxn="sfxn" score_type="hbond_lr_bb" confidence="0" threshold="0"/>
+        <CalculatorFilter name="hb_lr_bb_per_res" equation="FAA/RES" threshold="0" confidence="0">
+                <Var name="FAA" filter="hb_lr_bb" />
+                <Var name="RES" filter="nres_all"/>
+        </CalculatorFilter>
+        <CalculatorFilter name="hb_lr_bb_per_sheet" equation="FAA/RES" threshold="0" confidence="0">
+                <Var name="FAA" filter="hb_lr_bb" />
+                <Var name="RES" filter="nres_E"/>
+        </CalculatorFilter>
+        <ScoreType name="hb_sr_bb" scorefxn="sfxn" score_type="hbond_sr_bb" confidence="0" threshold="0"/>
+        <CalculatorFilter name="hb_sr_bb_per_helix" equation="FAA/RES" threshold="0" confidence="0">
+                <Var name="FAA" filter="hb_sr_bb" />
+                <Var name="RES" filter="nres_H"/>
+        </CalculatorFilter>
+
+        <ScoreType name="fa_atr" scorefxn="sfxn" threshold="0" score_type="fa_atr" confidence="0"/>
+        <CalculatorFilter name="fa_atr_per_res" equation="fa_atr_score / res" threshold="-5.2" confidence="0">
+                <Var name="fa_atr_score" filter="fa_atr"/>
+                <Var name="res" filter="res_count_all"/>
+        </CalculatorFilter>
+        <CalculatorFilter name="percent_core_SCN" equation="- rescount_coreSCN / (rescount3 + 0.01)" threshold="-0.1"   confidence="0" >
+             <Var name="rescount3" filter="res_count_all"/>
+             <Var name="rescount_coreSCN" filter="res_count_core_SCN"/>
+        </CalculatorFilter>
+
+        <SSShapeComplementarity name="ss_sc" verbose="0" confidence="0" min_sc="0.800"/>
+	<ShapeComplementarity name="chainAB_sc" min_sc="0.0" verbose="1" write_int_area="1" residue_selector1="chainB" residue_selector2="chainA" />
+        <PackStat name="packstat" repeats="20" confidence="0" />
+        <CavityVolume name="cavity" confidence="0"/>
+        <AverageDegree name="AvDeg" confidence="0"/>
+
+        <Worst9mer name="worst9mer" rmsd_lookup_threshold="1.1"  only_helices="false" confidence="0" />
+        <Worst9mer name="worst9mer_helix" rmsd_lookup_threshold="0.7"  only_helices="true" confidence="0" />
+	    <BuriedUnsatHbonds name="buns_all_heavy_ball" report_all_heavy_atom_unsats="true" scorefxn="sfxn" cutoff="5" residue_surface_cutoff="20.0" ignore_surface_res="true" print_out_info_to_pdb="true" dalphaball_sasa="1" probe_radius="1.1" confidence="0" />
+        <BuriedUnsatHbonds name="buns_bb_heavy_ball"  report_bb_heavy_atom_unsats="true"  scorefxn="sfxn" cutoff="5" residue_surface_cutoff="20.0" ignore_surface_res="true" print_out_info_to_pdb="true" dalphaball_sasa="1" probe_radius="1.1" confidence="0" />
+        <BuriedUnsatHbonds name="buns_sc_heavy_ball"  report_sc_heavy_atom_unsats="true"  scorefxn="sfxn" cutoff="5" residue_surface_cutoff="20.0" ignore_surface_res="true" print_out_info_to_pdb="true" dalphaball_sasa="1" probe_radius="1.1" confidence="0" />
+        <ScoreType name="pssm_MBF" scorefxn="sfxn_SANDBAG" score_type="total_score" threshold="0" confidence="0" />
+        <MoveBeforeFilter name="pssm_monomer" mover="chain1only" filter="pssm_MBF" confidence="0" />
+
+        <CalculatorFilter name="frag_pssm_per_res" equation="pssm_MBF / res" threshold="0" confidence="0">
+            <Var name="pssm_MBF" filter="pssm_MBF"/>
+            <Var name="res" filter="res_count_MBF"/>
+        </CalculatorFilter>
+        <Geometry name="geometry" omega="165" cart_bonded="20" start="1" end="9999" count_bad_residues="true" confidence="0"/> -->
+	<Holes name="holes_around_lig" threshold="-0.5" residue_selector="ligand_neighbour" normalize_per_atom="true" exclude_bb_atoms="true" confidence="0"/>	
+
+	__HBFILTER__
+
+    </FILTERS>
+    <SIMPLE_METRICS>
+        <SapScoreMetric name="sap" />
+        <SapScoreMetric name="sap_A"
+            score_selector="chainA"
+            sap_calculate_selector="chainA" sasa_selector="chainA" />
+        <SecondaryStructureMetric name="dssp_string" />
+
+    </SIMPLE_METRICS>
+    <PROTOCOLS>
+	<Add filter="timed"/>
+    <Add mover="add_bb_cst"/>
+    <Add mover="hard_pack"/>
+    Add mover="dump_pdb1"/>
+    <Add mover="softish_min"/>
+    Add mover="dump_pdb2"/>
+    <Add mover="hard_min"/>
+    Add mover="dump_pdb3"/>
+    <Add mover="rm_bb_cst"/>
+    Add mover="eenProfile"/>
+    Add filter_name="nMET"/>
+    Add filter_name="nALA"/>
+    Add filter_name="nARG"/>
+    Add filter_name="nHIS"/>
+    <Add filter_name="ddg_norepack" />
+    Add filter_name="interface_buried_sasa" />
+    <Add filter_name="interface_sc" />
+    <Add filter_name="score_per_res" />
+    Add filter_name="ddg_hydrophobic" />
+    Add filter_name="mismatch_probability" />
+    <Add filter_name="contact_molecular_surface" />
+    <Add filter_name="dsasa"/>
+    Add mover="genProfile"/>
+    Add mover="scorepose"/>
+    Add filter="res_count_all" />
+    Add filter="p_aa_pp_per_res" />
+    Add filter="fa_atr_per_res" />
+    Add filter="ss_sc" />
+    Add filter="packstat" />
+    Add filter="cavity" />
+    Add filter="worst9mer" />
+    Add filter="worst9mer_helix" />
+    Add filter="buns_all_heavy_ball" />
+    Add filter="buns_bb_heavy_ball" />
+    Add filter="buns_sc_heavy_ball" />
+    Add filter="mismatch_probability" />
+    Add filter="percent_core_SCN" />
+
+    Add filter="hb_lr_bb_per_res"/>
+    Add filter="hb_lr_bb_per_sheet"/> #division by 0 problems?
+    Add filter="hb_sr_bb_per_helix"/> #division by 0 problems?
+    Add filter="motif_score_monomer"/>
+    Add filter="motif_degree_score_monomer"/>
+    Add filter="motif_score_monomer_per_res"/>
+    Add filter="motif_degree_score_monomer_per_res"/>
+    Add filter="AvDeg"/>
+    Add filter="longest_hpc"/>
+
+    Add filter="frag_pssm_per_res"/>
+    Add filter="geometry"/>
+    Add metrics="dssp_string" labels="dssp_string"/>
+    Add metrics="sap_A" labels="sap_A"/>
+    Add metrics="sap" labels="sap_all"/>
+    <Add filter="holes_around_lig"/>
+    <Add filter="timed"/>
+
+        __HBFILTERPROTOCOL__
+</PROTOCOLS>
+
+<OUTPUT scorefxn="sfxn"/>
+</ROSETTASCRIPTS>
+

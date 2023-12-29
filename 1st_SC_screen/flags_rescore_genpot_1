@@ -1,0 +1,47 @@
+#-run:preserve_header
+#-renumber_pdb 1
+#-per_chain_renumbering
+#-use_input_sc
+#-no_his_his_pairE 
+#-in:file:fullatom
+-nstruct 1
+
+#-linmem_ig 10 
+#-multi_cool_annealer 10
+#-use_bicubic_interpolation
+#-overwrite
+#-out::file::pdb_comments
+#-out:path:pdb ./output_seq
+#-no_optH false
+#-flip_HNQ
+#-renumber_pdb 1
+#-precompute_ig #for buns
+#-beta_nov16
+-beta #use genpot
+-no_nstruct_label true
+-run:preserve_header true
+#dumbrack flags
+-dunbrack_prob_buried 0.8 
+-dunbrack_prob_nonburied 0.8 
+-dunbrack_prob_buried_semi 0.8 
+-dunbrack_prob_nonburied_semi 0.8
+#-beta # use this instead of -beta_nov16 b/c the stability
+#-mute protocols.flxbb.LayerDesignOperation
+#-unmute core.scoring.hbonds.hbonds_geom
+#-unmute protocols.jd2.JobDistributor
+#-mute protocols.denovo_design.task_operations.ConsensusLoopDesignOperation
+#-mute core.select.residue_selector.SecondaryStructureSelector
+#-mute protocols.denovo_design.movers.FastDesign
+-holes:dalphaball /software/rosetta/DAlphaBall.gcc
+-mute protocols.rosetta_scripts.ParsedProtocol.REPORT  #make rescore faster
+-indexed_structure_store:fragment_store /home/linnaan/software/ss_grouped_vall_helix_shortLoop.h5
+#-indexed_structure_store:fragment_store /databases/vall/ss_grouped_vall_helix_shortLoop.h5 #use this to prevent reading from home
+#-extra_res /home/linnaan/Cavity_Bundle/FOL_binder/FOL_param/FOL.params
+#-extra_rese /home/linnaan/ligands/FOL/FOL_classic_redo/FOL.params
+#-extra_res /home/linnaan/ligands/4KL_xanthurenic_acid/4KL.params
+#-extra_res /home/linnaan/ligands/CHD/CHD.params
+#-extra_improper_file /home/linnaan/Cavity_Bundle/FOL_binder/FOL_param/FOL_fixN2.tors
+-extra_res __PARAMS__
+#-out:path:scratch /net/scratch/linnaan/cache/
+#-suffix __SUFFIX__
+

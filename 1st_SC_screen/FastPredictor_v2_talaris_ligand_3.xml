@@ -1,0 +1,164 @@
+<ROSETTASCRIPTS>
+    <SCOREFXNS>
+        # The current protocol takes ~0.3s to run. It only designs with apolars. It only packs the patchdock residues and binder residues within 8A
+	# It does not pack Y since this sees that as the same as F. It has ex1_ex2 turned off. All binder residues not being designed are
+	# mutated to G to get out of the way
+
+	# Version 2 allows hotspot residues to repack
+	<ScoreFunction name="sfxn_design" weights="talaris2014" /> # Used in fast repack
+        <ScoreFunction name="sfxn" weights="talaris2014" > # Used in hard min
+        </ScoreFunction>
+        <ScoreFunction name="sfxn_softish" weights="talaris2014" > # Used in soft min
+            <Reweight scoretype="fa_rep" weight="0.15" />
+        </ScoreFunction>
+    </SCOREFXNS>
+    <RESIDUE_SELECTORS>
+        <Chain name="chainA" chains="A"/>
+        <Chain name="chainB" chains="B"/>
+        Neighborhood name="interface_chA" selector="chainB" distance="8.0" />
+        Neighborhood name="interface_chB" selector="chainA" distance="8.0" />
+        And name="AB_interface" selectors="interface_chA,interface_chB" />
+        Not name="Not_interface" selector="AB_interface" />
+        And name="actual_interface_chB" selectors="AB_interface,chainB" />
+	And name="actual_interface_chA" selectors="AB_interface,chainA" />
+        And name="not_interface_chB" selectors="Not_interface,actual_interface_chB" />
+        <ResidueName name="apolar" residue_name3="ALA,CYS,PHE,ILE,LEU,MET,THR,PRO,VAL,TRP,TYR" />
+        <Not name="polar" selector="apolar" />
+	<ResidueName name="AILV" residue_name3="ALA,ILE,LEU,VAL" />
+	<Not name="not_AILV" selector="AILV" />
+	<Index name="ligand" resnums="%%ligand_res_number%%"/>
+        <ResiduePDBInfoHasLabel name="all_rifres_res" property="RIFRES"/>
+        <And name="rifres_res" selectors="all_rifres_res,not_AILV" />
+	<CloseContact name="interface" residue_selector="ligand" contact_threshold="3" />
+        CloseContact name="ligand_neighbour" residue_selector="ligand" contact_threshold="12"/>
+        And name="interface" selectors="interface_by_contact"/> /only consider actual core and interface residues; remove pocket
+        <Not name="not_interface" selector="interface"/>
+	Or name="interface_and_ligand" selectors="interface,ligand"/>
+	<And name="not_interface_or_ligand" selectors="not_interface,chainA"/>
+	And name="neighbour_not_close" selectors="ligand_neighbour">
+		Not name="not_neighbour" selector="interface_by_contact"/>
+		Not name="not_ligand" selector="ligand"/>
+	/And>
+
+	And name="apolar_A" selectors="apolar,actual_interface_chA" />
+        And name="apolar_B" selectors="apolar,actual_interface_chB" />
+
+        <ResidueName name="select_PG" residue_name3="PRO,GLY" />
+
+        Slice name="patchdock_res" indices="%%patchdock_res%%" selector="chainB" />
+        Not name="not_patchdock_res" selector="patchdock_res" />
+        And name="target_not_patchdock_res" selectors="chainB,not_patchdock_res" />
+
+        Neighborhood name="near_patchdockres" selector="patchdock_res" distance="10.0" />
+        Not name="not_near_patchdock_res" selector="near_patchdockres" />
+        And name="binder_not_near_patchdockres" selectors="chainA,not_near_patchdock_res" />
+
+	<ResiduePDBInfoHasLabel name="HOTSPOT_res" property="HOTSPOT" />
+    </RESIDUE_SELECTORS>
+
+
+    <RESIDUE_SELECTORS>
+        <!-- Layer Design -->
+        <Layer name="surface" select_core="false" select_boundary="false" select_surface="true" use_sidechain_neighbors="true"/>
+        <Layer name="boundary" select_core="false" select_boundary="true" select_surface="false" use_sidechain_neighbors="true"/>
+        <Layer name="core" select_core="true" select_boundary="false" select_surface="false" use_sidechain_neighbors="true"/>
+        <SecondaryStructure name="sheet" overlap="0" minH="3" minE="2" include_terminal_loops="false" use_dssp="true" ss="E"/>
+        <SecondaryStructure name="entire_loop" overlap="0" minH="3" minE="2" include_terminal_loops="true" use_dssp="true" ss="L"/>
+        <SecondaryStructure name="entire_helix" overlap="0" minH="3" minE="2" include_terminal_loops="false" use_dssp="true" ss="H"/>
+        <And name="helix_cap" selectors="entire_loop">
+            <PrimarySequenceNeighborhood lower="1" upper="0" selector="entire_helix"/>
+        </And>
+        <And name="helix_start" selectors="entire_helix">
+            <PrimarySequenceNeighborhood lower="0" upper="1" selector="helix_cap"/>
+        </And>
+        <And name="helix" selectors="entire_helix">
+            <Not selector="helix_start"/>
+        </And>
+        <And name="loop" selectors="entire_loop">
+            <Not selector="helix_cap"/>
+        </And>
+    </RESIDUE_SELECTORS>
+
+    <TASKOPERATIONS>        
+        <DesignRestrictions name="no_polars_allowG"> 
+            <Action selector_logic="not_interface_or_ligand"  aas="G"/> # Get all non-patchdock res out of the way so that we can pack patchdock res better
+            <Action selector_logic="loop AND interface"                          aas="AFILV"/> #AFILMVW
+            <Action selector_logic="entire_helix AND interface"                  aas="AFILV"/> #AFILVW
+            <Action selector_logic="sheet AND interface"                         aas="FILV"/> #FILVW # Y packs almost the same as F
+        </DesignRestrictions>
+    </TASKOPERATIONS>
+
+
+    <TASKOPERATIONS>
+        <ProteinProteinInterfaceUpweighter name="upweight_interface" interface_weight="10" /> # make the interface look good at all cost
+        <ProteinInterfaceDesign name="pack_long" design_chain1="0" design_chain2="0" jump="1" interface_distance_cutoff="15"/>
+        <InitializeFromCommandline name="init" />
+        <IncludeCurrent name="current" />
+        <LimitAromaChi2 name="limitchi2" chi2max="110" chi2min="70" include_trp="True" />
+        <ExtraRotamersGeneric name="ex1_ex2" ex1="1" ex2="1" />
+
+
+        <OperateOnResidueSubset name="restrict_target_not_interface" selector="ligand">
+            <PreventRepackingRLT/>
+        </OperateOnResidueSubset>
+        <OperateOnResidueSubset name="restrict_to_interface" selector="not_interface">
+            <PreventRepackingRLT/>
+        </OperateOnResidueSubset>
+        <OperateOnResidueSubset name="restrict_target2repacking" selector="ligand"> # keep
+            <RestrictToRepackingRLT/>
+        </OperateOnResidueSubset>
+        <OperateOnResidueSubset name="restrict_hotspots2repacking" selector="HOTSPOT_res"> # keep
+            <RestrictToRepackingRLT/>
+    </OperateOnResidueSubset>
+    <OperateOnResidueSubset name="restrict_binder_not_near_patchdock_res" selector="not_interface_or_ligand"> # keep
+            <PreventRepackingRLT/>
+        </OperateOnResidueSubset>
+	# Later I want to try allowing repacking of the target around the patchdock residues - NRB
+	<OperateOnResidueSubset name="restrict_target2patchdock_res" selector="ligand"> # keep
+            <PreventRepackingRLT/>
+        </OperateOnResidueSubset>
+	<OperateOnResidueSubset name="restrict_rifres" selector="rifres_res"> # keep
+            <PreventRepackingRLT/>
+        </OperateOnResidueSubset>
+
+        <DisallowIfNonnative name="disallow_GLY" resnum="0" disallow_aas="G" />
+        <DisallowIfNonnative name="disallow_PRO" resnum="0" disallow_aas="P" />
+        <SelectBySASA name="PR_monomer_core" mode="sc" state="monomer" probe_radius="2.2" core_asa="10" surface_asa="10" core="0" boundary="1" surface="1" verbose="0" />
+
+        <OperateOnResidueSubset name="restrict_PRO_GLY" selector="select_PG">
+            <PreventRepackingRLT/>
+        </OperateOnResidueSubset>
+    </TASKOPERATIONS>
+    <MOVERS>
+        <TaskAwareMinMover name="min" scorefxn="sfxn" bb="0" chi="1" task_operations="pack_long" />
+    </MOVERS>
+    <FILTERS>
+	<Time name="timed"/>
+        <ContactMolecularSurface name="contact_molecular_surface" distance_weight="0.5" target_selector="chainA" binder_selector="chainB" confidence="0" use_rosetta_radii="1" />
+	<ContactMolecularSurface name="contact_patch" distance_weight="0.5" target_selector="ligand" binder_selector="chainA" confidence="0" use_rosetta_radii="1"/>
+	<DSasa name="dsasa" lower_threshold="0" upper_threshold="1"/>
+        <Sasa name="interface_buried_sasa" jump="1" confidence="0" />
+	<Holes name="holes_around_lig" threshold="-0.5" residue_selector="interface" normalize_per_atom="true" exclude_bb_atoms="true" confidence="0"/>
+
+	__HBFILTER__
+	</FILTERS>
+    <MOVERS>
+	    #removed ex1_ex2
+	    <PackRotamersMover name="fast_pack" scorefxn="sfxn_design" task_operations="current,no_polars_allowG,limitchi2,upweight_interface,restrict_target2repacking,restrict_hotspots2repacking,restrict_rifres"/>
+       LoadPoseFromPDBLite name="load_from_lite" /> #need output to lite format
+    </MOVERS>
+    <APPLY_TO_POSE>
+    </APPLY_TO_POSE>
+    <PROTOCOLS>
+	<Add filter="timed" />
+	Add mover="load_from_lite" />
+        <Add mover="fast_pack" />
+	<Add filter_name="contact_molecular_surface" />
+	Add filter_name="dsasa"/>
+	Add filter_name="interface_buried_sasa"/>
+	Add filter_name="holes_around_lig"/>
+	__HBFILTERPROTOCOL__
+	<Add filter="timed" />
+    </PROTOCOLS>
+    OUTPUT />
+    </ROSETTASCRIPTS>
