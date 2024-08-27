@@ -1,6 +1,7 @@
 # Pseudocycle_small_molecule_binder
 - This script goes along with the paper: De novo design of diverse small molecule binders and sensors using Shape Complementary Pseudocycles
 https://www.biorxiv.org/content/10.1101/2023.12.20.572602v1
+Twitter: @alchemist_an
 # Key references:
 0. Pyrosetta: https://www.pyrosetta.org/
 1. pseudocycle: https://github.com/LAnAlchemist/Psedocycles_NSMB.git
